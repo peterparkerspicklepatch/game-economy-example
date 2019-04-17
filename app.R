@@ -1,21 +1,10 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-#remotes::install_github('rstudio/DT')
-
 library(DT)
 library(shiny)
-library(data.tree)
 library(plotly)
 library(readxl)
 library(tidyverse)
 
-setwd("/Users/phillipblack 1/Downloads/")
+#setwd("/Users/phillipblack 1/Downloads/")
 island_economy <- read_excel("20180112 - Game economy modelling test - dataset.xlsx")
 island_economy_lookup <- read_excel("20180112 - Game economy modelling test - dataset.xlsx", 2)
 
@@ -64,7 +53,7 @@ navbarPage("Understanding an Island Economy",
 
     mainPanel(
       p("Question: Build a tool to visualize and possibly edit the relationship between resources."),
-      p("I made some basic bar chart and data tables. With more time I'd work on adding resource production trees and creating editable / reactive cells on the data table sections."),
+      p("I made some basic bar charts and data tables. Nothing spectacular. With more time I'd work on adding resource production trees and creating reactive cells on the data tables"),
       br(),
       tabsetPanel(
       tabPanel(p(icon("bar-chart"), "Visualize Production"),
@@ -74,7 +63,7 @@ navbarPage("Understanding an Island Economy",
         plotlyOutput("barPlot2", width = '90%')
       ),
       tabPanel(p(icon("table"), "Data Tables"),
-               p("A user can double click to edit values. Unfortunately, this is not reflected on the charts. While possible, I thought it was outside time "),
+               p("A user can double click to edit values. Unfortunately, this is not reflected on the charts. While possible, it was outside time constraints."),
                br(),
                h4("Resource Comparison", align = 'Left'),
                dataTableOutput(outputId = 'dTable'),
@@ -105,9 +94,9 @@ ingredients all the way to the final product)"),
           p("Some of the production chain was unclear. If 1 Cotton can only produce 1 Cotton, how does one make the Cotton to begin with?
             In this case, I assumed Cotton was the 'Base Resource' of production."),
           br(),
-          p("Below I calculation the total resources needed for each input and tally it as a running sum.
+          p("Below I calculate the total resources needed for each input and tally it as a running sum.
             The time to complete each input was a function of
-            Total Time for Resource = Needed/Producted Per Cycle * Min Per Cycle"),
+            Total Time for Resource = Needed/Produced Per Cycle * Min Per Cycle then rounded upward."),
           h4("Resource Cost Lookup", align = 'Left'),
           dataTableOutput('currentResult')
 
@@ -137,17 +126,18 @@ ingredients all the way to the final product)"),
     mainPanel(
           p("Build a tool that can estimate how many sessions would a player need to complete a certain object. Please
 explicitly state your assumptions on playing behavior (eg: sessions per day, session length, etc)"),
-          p("I didn't think was the most useful question, rather I explored the number of session days to build a resource.
+          p("I didn't think this was the most useful question, rather I explored the number of session days to build a resource.
             With some assumptions around sessions days to real time days (i.e. how many days in a week does a player play)
-             this can back into day to produce resource."),
+             this can back into days to produce the resource."),
           br(),
           p("This was a simple model wherein my theory was that how many sessions days is dependent on how many collection sessions
             the resource asks of the player. A collection session is where the players 'clears out' all the resources in a app open to app close."),
           h4("Collection Sessions in Production Chain", align = 'Left'),
           p("Here, I just show number of 'nodes' the resource asks of the player.
-            For Spyglass, the players 'kicks' off build order at node 2, then returns to kick off node 1 and finally node 0."),
+            For Spyglass, the player 'kicks' off build order at node 2, then returns to kick off node 1 and finally node 0."),
           br(),
           p("With more time I would add a 'savings' account to account for extra resources not used in the resource build."),
+          p("A big assumption was that a player could only kick off one cycle per resource. This means a player could not build 3x cotton cycles at once, but must wait for one to complete before starting another."),
           dataTableOutput('estimate'),
           h4("Estimation", align = 'Left'),
           dataTableOutput('estimate2')
@@ -161,13 +151,29 @@ explicitly state your assumptions on playing behavior (eg: sessions per day, ses
       h4("Bonus question: let’s assume now that producing a Fishing Net has a 30% chance of failure (you wait the
 time, lose the cotton and don’t get a fishing net). How would you change the models?"),
       br(),
-      p(""),
+      p("If this was the case, the resources produced from a production cycle become the expected resources produced from a cycle.
+        expected[resources_from_one_cycle] = resources_from_one_cycle*prob_of_success.
+
+        Wherein, Total Time for Resource = (Needed/expected[Produced Per Cycle]) * Min Per Cycle
+        "),
       br(),
       h4("Collection Sessions in Production Chain", align = 'Left'),
       br(),
       p("What else would you use this dataset for? Are there other visualizations or models you think would be
 interesting to look at or build? Looking at your current model, are there any issues you would flag up to the
-game designer?")
+game designer?"),
+      br(""),
+      tags$ol(
+        tags$li("Without question a tree diagram showing all of the nodes of production for a given resource."),
+        tags$li("Bonus points if the model can 'prune' parts of the production tree and recalculate production times."),
+        tags$li("My model also doesn't take into account excess production which matters over the long-run as
+players build up excess base resources. This drives down collection sessions and sessions needed to produce a given output."),
+        tags$li("The session day estimation is primative, layering in a couple more assumptions could greatly improve prediction accuarcy. Benchmarking against King's internal games is the best test."),
+        tags$li("Being able to build a basket of goods (3x Spyglass, 2x Fishing Goods), and calculating the total session days required is another area of development."),
+        tags$li("Being able to add a new resource in the model and well adding required inputs is useful for 'building out the game'."),
+        tags$li("I'd spend more time thinking about the number of unique resources needed for an output. More unique resources could increase UX costs for the player as they might have to collect from different parts of the game.")
+      ),
+      br(""),
       h4("Time Spent: 8 Hours")
 
   )
@@ -248,7 +254,7 @@ server <- function(input, output) {
            group_by(Input) %>%
            summarise(Needed = n()) %>%
            left_join(island_economy, by = c("Input" = "Resource name")) %>%
-           mutate(`Cycles` = Needed/`Number of resources produced`,
+           mutate(`Cycles` = ceiling(Needed/`Number of resources produced`),
                   `Total Time for Resource` = Needed/`Number of resources produced`*`Minutes to produce the resource`,
                   `Running Total Time` = cumsum(`Total Time for Resource`)) %>%
            select(Input, Needed, `Number of resources produced in Single Cycle` =
